@@ -45,7 +45,7 @@ dim(alpha)#check dimensions
 
 #compute endemism
 tmp <- apply(spp, 2, sum)
-spp2 <- spp[, which(tmp > 0)]
+spp2 <- spp[, which(tmp == 1)]
 dim(spp2)#check dimensions
 uni <- as.matrix(apply(spp2, 1, sum))
 colnames(uni) <- 'endemism'
