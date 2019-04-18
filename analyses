@@ -11,7 +11,7 @@ br <- shapefile('Brasil')
 source('splistToMatrix.R')
 
 ##load species occurrences matrix
-d <- read.csv('latlongs.csv', header = T, sep = ',')
+d <- read.csv(file.choose(), header = T, sep = ',')
 
 ##define species
 sp <- as.vector(unique(d$Species))
