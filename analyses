@@ -72,14 +72,14 @@ proj4string(d)=CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,
 r.endemism <- raster(d, res  = 0.5)
 r.endemism <- rasterize(d, r.endemism, field = d@data[,1])
 
-##plot to working directory
-tiff('endemism.tiff', height = 15, width = 30,
+##plot MG results to working directory
+tiff('diversity.tiff', height = 15, width = 30,
 	unit = 'cm', res = 600)
 par(mfrow = c(1,2))
 
 plot(mg, border = 'white')
 plot(r.alpha, main = 'Riqueza', add = T)
-plot(br, add = T)
+plot(mg, add = T)
 
 plot(mg, border = 'white')
 plot(r.endemism, 'Endemismo', add = T)
