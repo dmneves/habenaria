@@ -16,6 +16,9 @@ d <- read.csv(file.choose(), header = T, sep = ',')
 ##define species
 sp <- as.vector(unique(d$Species))
 
+##load shapefile
+br <- shapefile('Brasil')
+
 ##rasterize Brazil's delimitation. Change resolution accordingly; 0.5 = c.100km
 r <- raster(br, res = 0.5)
 
