@@ -1,0 +1,52 @@
+#load packages
+require(classInt)
+require(raster)
+require(RColorBrewer)
+
+##load shapefile
+br <- shapefile('Brasil')
+
+##load function to transform species occurrences into spp-by-site matrix
+source('splistToMatrix.R')
+
+##load species occurrences matrix
+d <- read.csv('latlongs.csv', header = T, sep = ',')
+
+##define species
+sp <- as.vector(unique(d$Species))
+
+##rasterize Brazil's delimitation. Change resolution accordingly; 0.1 = c.20km
+r <- raster(br, res = 0.1)
+
+##extract latlongs and name columns
+latlong <- coordinates(r)
+colnames(latlong) <- c('Long10', 'Lat10')
+
+##create spp-by-site matrix and name latlong rows
+spp <- splistToMatrix(d, sp, r)
+dim(spp)
+rownames(latlong) <- rownames(spp)
+
+##delete sites with no species and check dimensions
+uni <- apply(spp, 1, sum)
+spp <- spp[which(uni > 0), ]
+dim(spp)
+
+##prune latlong sites to match spp matrix
+latlong <- latlong[which(rownames(latlong)%in%rownames(spp)), ]
+
+##compute richness and endemism
+alpha <- as.matrix(apply(spp, 1, sum))
+colnames(alpha) <- 'alpha'
+dim(alpha)#check dimensions
+
+tmp <- apply(spp, 2, sum)
+spp2 <- spp[, which(tmp == 1)]
+dim(spp2)#check dimensions
+uni <- as.matrix(apply(spp2, 1, sum))
+colnames(uni) <- 'endemism'
+dim(uni)
+
+##merge objects
+mapping <- as.data.frame(cbind(latlong, alpha, uni))
+
