@@ -10,8 +10,9 @@ br <- shapefile('Brasil')
 ##load function to transform species occurrences into spp-by-site matrix
 source('splistToMatrix.R')
 
-##load species occurrences matrix
+##load species occurrences matrix and check dimensions
 d <- read.csv(file.choose(), header = T, sep = ',')
+dim(d)
 
 ##define species
 sp <- as.vector(unique(d$Species))
