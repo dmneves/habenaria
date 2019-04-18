@@ -1,7 +1,9 @@
+#install packages
+
+install.packages('raster')
+
 #load packages
-require(classInt)
 require(raster)
-require(RColorBrewer)
 
 ##load shapefile
 br <- shapefile('Brasil')
