@@ -17,8 +17,8 @@ d <- read.csv('latlongs.csv', header = T, sep = ',')
 ##define species
 sp <- as.vector(unique(d$Species))
 
-##rasterize Brazil's delimitation. Change resolution accordingly; 0.1 = c.20km
-r <- raster(br, res = 0.1)
+##rasterize Brazil's delimitation. Change resolution accordingly; 0.5 = c.100km
+r <- raster(br, res = 0.5)
 
 ##extract latlongs and name columns
 latlong <- coordinates(r)
@@ -37,13 +37,15 @@ dim(spp)
 ##prune latlong sites to match spp matrix
 latlong <- latlong[which(rownames(latlong)%in%rownames(spp)), ]
 
-##compute richness and endemism
+##compute richness
 alpha <- as.matrix(apply(spp, 1, sum))
 colnames(alpha) <- 'alpha'
 dim(alpha)#check dimensions
 
+
+#compute endemism
 tmp <- apply(spp, 2, sum)
-spp2 <- spp[, which(tmp > 0)]
+spp2 <- spp[, which(tmp == 1)]
 dim(spp2)#check dimensions
 uni <- as.matrix(apply(spp2, 1, sum))
 colnames(uni) <- 'endemism'
@@ -51,4 +53,14 @@ dim(uni)
 
 ##merge objects
 mapping <- as.data.frame(cbind(latlong, alpha, uni))
+
+#rasterize and plot alpha
+attach(mapping)
+d <- data.frame(Long10, Lat10, alpha)
+coordinates(d)=~Long10+Lat10
+proj4string(d)=CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
+
+r.alpha <- raster(d, res  = 0.5)
+r.alpha <- rasterize(d, r.alpha, field = d@data[,1])
+plot(r.alpha)
 
