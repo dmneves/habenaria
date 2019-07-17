@@ -277,21 +277,3 @@ legend('bottomleft', c('bio4 = Temperature Seasonality',
 
 dev.off()
 
-
-##results
-                          Comparison of values by ind                          
-                                 (Bonferroni)                                  
-Col Mean-|
-Row Mean |   Amazonia   Atlantic   Caatinga    Cerrado
----------+--------------------------------------------
-Atlantic |  -46.34582
-         |    0.0000*
-         |
-Caatinga |  -26.93283   19.41298
-         |    0.0000*    0.0000*
-         |
- Cerrado |  -39.41189   6.933929  -12.47905
-         |    0.0000*    0.0000*    0.0000*
-         |
-   Pampa |  -25.08471   21.26111   1.848123   14.32718
-         |    0.0000*    0.0000*     0.3229    0.0000*
