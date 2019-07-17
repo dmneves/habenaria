@@ -1,11 +1,26 @@
 #install packages
 install.packages('raster')
+install.packages('rgdal')
+istall.packages('vegan')
+install.packages('recluster')
+install.packages('maps')
+install.packages('data.table')
+install.packages('dunn.test')
+install.packages('UpSetR')
 
 #load packages
 require(raster)
+require(rgdal)
+require(vegan)
+require(recluster)
+require(maps)
+require(data.table)
+require(dunn.test)
+require(UpSetR)
 
-##load shapefile
+##load shapefiles
 br <- shapefile('Brasil')
+ibgeg <- shapefile('ibge')
 
 ##load function to transform species occurrences into spp-by-site matrix
 source('splistToMatrix.R')
@@ -43,18 +58,33 @@ colnames(alpha) <- 'alpha'
 dim(alpha)#check dimensions
 
 
-#compute endemism
-tmp <- apply(spp, 2, sum)
-spp2 <- spp[, which(tmp == 1)]
-dim(spp2)#check dimensions
-uni <- as.matrix(apply(spp2, 1, sum))
-colnames(uni) <- 'endemism'
-dim(uni)
+##weighted endemism
+#needs improving; currently messy with a bunch of temporary objects
+#coded in a rush (!), but seems more robust than previous metric for endemism
+
+tmp <- as.matrix(apply(spp, 2, sum))#temporary object 1
+rownames(tmp) <- colnames(spp)
+tmp2 <- max(tmp)#temporary object 2
+tmp <- tmp-tmp2
+tmp <- tmp*-1
+tmp2 <- max(tmp)
+tmp <- tmp/tmp2
+
+tmp2 <- lapply(1:ncol(spp), function(x)
+	spp[,x]*tmp[x,])
+
+spp2 <- do.call(cbind, tmp2)
+colnames(spp2) <- colnames(spp)
+
+endemism <- as.matrix(apply(spp2, 1, sum))
+colnames(endemism) <- 'endemism'
+
 
 ##merge objects
-mapping <- as.data.frame(cbind(latlong, alpha, uni))
+mapping <- cbind(latlong, alpha, endemism)
+mapping <- as.data.frame(mapping)
 
-#rasterize and plot alpha for  Minas Gerais
+##rasterize and plot alpha
 attach(mapping)
 d <- data.frame(Long10, Lat10, alpha)
 coordinates(d)=~Long10+Lat10
@@ -62,27 +92,206 @@ proj4string(d)=CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,
 
 r.alpha <- raster(d, res  = 0.5)
 r.alpha <- rasterize(d, r.alpha, field = d@data[,1])
-plot(r.alpha)
+plot(ibge, border = 'white')
+plot(r.alpha, add = T)
+plot(ibge, add = T)
 
-##rasterize endemism
+
+##rasterize and plot endemism
 d <- data.frame(Long10, Lat10, endemism)
 coordinates(d)=~Long10+Lat10
 proj4string(d)=CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
 r.endemism <- raster(d, res  = 0.5)
 r.endemism <- rasterize(d, r.endemism, field = d@data[,1])
+plot(ibge, border = 'white')
+plot(r.endemism, add = T)
+plot(ibge, add = T)
 
-##plot MG results to working directory
+
+##plot to working directory
 tiff('diversity.tiff', height = 15, width = 30,
 	unit = 'cm', res = 600)
 par(mfrow = c(1,2))
 
-plot(mg, border = 'white')
-plot(r.alpha, main = 'Riqueza', add = T)
-plot(mg, add = T)
+plot(ibge, border = 'white')
+plot(r.alpha, add = T)
+plot(ibge, add = T)
+title('Species Richness')
 
-plot(mg, border = 'white')
-plot(r.endemism, 'Endemismo', add = T)
-plot(mg, add = T)
+plot(ibge, border = 'white')
+plot(r.endemism, add = T)
+plot(ibge, add = T)
+title('Weighted Endemism')
 
 dev.off()
+
+
+###biomes
+ibge <- shapefile('ibge')
+ll <- SpatialPoints(latlong)
+proj4string(ll)=CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
+
+biomes <- over(ll, ibge)
+
+#write table; faster (and much easier) to parse outside R
+write.table(biomes, 'biomes.csv')
+
+
+##richness across biomes
+#load biomes matrix and control for sample size
+biomes <- read.csv('biomes.csv', header = T, row.names = 1, sep = ',')
+biomes <- cbind(richness, biomes)
+
+#randomly selecting (1,000 times) ten sites within each biome
+biomes2  <- data.table(biomes)
+biomes.sample <- lapply(1:1000, function(x)
+	biomes2[ , .SD[sample(1:.N,min(10,.N))], by = biome])
+
+#computing mean richness across each list with ten sites (i.e., 1000 values)
+tmp <- lapply(1:length(biomes.sample), function(x) biomes.sample[[x]]$richness)
+tmp <- do.call(cbind, tmp)
+biomes2 <- biomes.sample[[1]]$biome
+tmp <- lapply(1:1000, function(x)
+	aggregate(as.vector(tmp[, x]), list(biomes2), mean))
+
+biomes2 <- lapply(1:1000, function(y) tmp[[y]]$x)
+biomes2 <- do.call(rbind, biomes2)
+
+#setting names
+colnames(biomes2) <- c('Amazonia', 'Atlantica', 'Caatinga', 'Cerrado', 'Pampa')
+
+
+#boxplots
+tiff('boxplot_alpha.tiff', height = 15, width = 15, unit = 'cm', res = 200)
+boxplot(biomes2, ylab = 'Species Richness', cex.lab = 1.5)
+dev.off()
+
+#Dunn test
+biomes3 <- data.frame(biomes2)
+biomes3 <- stack(biomes3)
+attach(biomes3)
+
+shapiro.test(aov(values ~ ind)$residuals)
+kruskal.test(values ~ ind)
+dunn.test(values, ind, method = "bonferroni")
+
+
+##total richness across biomes
+am <- biomes[which(biomes$biome == 'Amazonia'), ]
+am <- spp[which(rownames(spp)%in%rownames(am)), ]
+am <- apply(am, 2, sum)
+am[am > 1] <- 1
+
+at <- biomes[which(biomes$biome == 'Atlantica'), ]
+at <- spp[which(rownames(spp)%in%rownames(at)), ]
+at <- apply(at, 2, sum)
+at[at > 1] <- 1
+
+ca <- biomes[which(biomes$biome == 'Caatinga'), ]
+ca <- spp[which(rownames(spp)%in%rownames(ca)), ]
+ca <- apply(ca, 2, sum)
+ca[ca > 1] <- 1
+
+ce <- biomes[which(biomes$biome == 'Cerrado'), ]
+ce <- spp[which(rownames(spp)%in%rownames(ce)), ]
+ce <- apply(ce, 2, sum)
+ce[ce > 1] <- 1
+
+pa <- biomes[which(biomes$biome == 'Pampa'), ]
+pa <- spp[which(rownames(spp)%in%rownames(pa)), ]
+pa <- apply(pa, 2, sum)
+pa[pa > 1] <- 1
+
+biomes.total <- rbind(am, at, ca, ce, pa)
+
+apply(biomes.total, 1, sum)
+
+#plotting venn
+require(UpSetR)
+
+domains <- t(biomes.total)
+head(domains)
+colnames(domains) <- c('Amazon', 'Atlantic Forest', 'Caatinga',
+	'Cerrado', 'Pampa')
+
+tiff('venn_habenaria.tiff', height = 17, width = 20, unit = 'cm', res = 600)
+upset(as.data.frame(domains), nset = ncol(domains), nintersects = NA, text.scale = 1.5,
+	sets.x.label = "Species Richness",
+	mainbar.y.label = "Number of species")
+dev.off()
+
+
+##ordination
+#keeping only sites with 5+ and removing singletons
+uni <- apply(spp, 1, sum)
+spp2 <- spp[which(uni > 4), ]
+uni <- apply(spp2, 2, sum)
+spp2 <- spp2[, which(uni > 1)]
+
+#deleting a few more sites
+#b/c some sites with 4 or less species after removing singletons
+uni <- apply(spp2, 1, sum)
+spp2 <- spp2[which(uni > 4), ]
+
+#hellinger transformation
+spp.hel <- decostand(spp2, 'hel')
+
+#simpson dissimilarity index
+spp.sim <- recluster.dist(spp.hel, 'simpson')
+
+#ordination analysis (NMDS)
+spp.ord <- metaMDS(spp.sim)
+spp.scores <- scores(spp.ord)#axes scores
+
+
+##extracting climatic variables and adding to ordination plot
+r <- getData("worldclim", var = "bio", res = 10)
+env <- extract(r, ll)#extracting environmental data by latlongs
+
+
+#merging objects
+biomes.ord <- cbind(spp.scores, biomes.ord, env)
+
+
+#assessing fit between env and ordination axes
+fit1 <- envfit(spp.ord, env)
+env2 <- env[, c('bio12', 'bio16', 'bio4')]#most significant variables
+fit2 <- envfit(spp.ord, env2)#selected variables
+
+
+#plotting
+tiff('nmds_habenaria.tiff', height = 15, width = 30, unit = 'cm', res = 600)
+par(mfrow = c(1, 2))
+plot(spp.scores, pch = 16, col = c('darkgreen', 'green', 'yellow',
+	'orange', 'purple')[as.numeric(biomes.ord$biome)])
+plot(fit2, col = 'black')
+plot(1, type = 'n', axes = F, xlab = '', ylab = '')
+legend('topleft', c('Amazonia', 'Mata Atlantica', 'Caatinga',
+	'Cerrado', 'Pampa'), col = c('darkgreen', 'green', 'yellow',
+	'orange', 'purple'), pch = 16, bty = 'n', cex = 1.5)
+
+legend('bottomleft', c('bio4 = Temperature Seasonality',
+	'bio12 = Mean Annual Precipitation',
+	'bio16 = Precipitation of Wettest Quarter'), cex = 1, bty = 'n')
+
+dev.off()
+
+
+##results
+                          Comparison of values by ind                          
+                                 (Bonferroni)                                  
+Col Mean-|
+Row Mean |   Amazonia   Atlantic   Caatinga    Cerrado
+---------+--------------------------------------------
+Atlantic |  -46.34582
+         |    0.0000*
+         |
+Caatinga |  -26.93283   19.41298
+         |    0.0000*    0.0000*
+         |
+ Cerrado |  -39.41189   6.933929  -12.47905
+         |    0.0000*    0.0000*    0.0000*
+         |
+   Pampa |  -25.08471   21.26111   1.848123   14.32718
+         |    0.0000*    0.0000*     0.3229    0.0000*
