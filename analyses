@@ -1,7 +1,7 @@
 #install packages
 install.packages('raster')
 install.packages('rgdal')
-istall.packages('vegan')
+install.packages('vegan')
 install.packages('recluster')
 install.packages('maps')
 install.packages('data.table')
